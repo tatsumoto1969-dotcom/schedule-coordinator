@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3者日程調整アプリ</title>
+<style>
+  /* システムフォント（外部依存なし・完全オフライン対応） */
+  :root {
+    --ink: #1a1a2e;
+    --ink-light: #2d2d4a;
+    --paper: #f5f0e8;
+    --paper-dark: #ede7d9;
+    --seal: #c0392b;
+    --seal-light: #e74c3c;
+    --gold: #b8860b;
+    --gold-light: #d4a017;
+    --muted: #7a7a8c;
+    --border: #c8c0b0;
+    --shadow: rgba(26,26,46,0.12);
+    --green: #2d5a3d;
+    --blue: #1a3a5c;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 20% 0%, rgba(184,134,11,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 100%, rgba(192,57,43,0.05) 0%, transparent 60%);
+  }
+  body::before {
+    content: '';
+    display: block;
+    height: 4px;
+    background: linear-gradient(90deg, var(--seal) 0%, var(--gold) 50%, var(--seal) 100%);
+  }
+
+  header {
+    text-align: center;
+    padding: 44px 24px 28px;
+    border-bottom: 1px solid var(--border);
+  }
+  header::after {
+    content: '◆';
+    display: block;
+    color: var(--gold);
+    font-size: 12px;
+    margin-top: 14px;
+    letter-spacing: 8px;
+  }
+  h1 {
+    font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'MS PMincho', serif;
+    font-size: clamp(20px, 4vw, 30px);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+  h1 span {
+    display: block;
+    font-size: 12px;
+    font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+    font-weight: 300;
+    color: var(--muted);
+    letter-spacing: 0.3em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .container { max-width: 720px; margin: 0 auto; padding: 36px 20px 80px; }
+
+  /* ── Step tabs ── */
+  .steps {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 36px;
+  }
+  .step-tab {
+    flex: 1;
+    padding: 11px 6px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    background: var(--paper-dark);
+    border-right: 1px solid var(--border);
+    transition: all 0.3s;
+  }
+  .step-tab:last-child { border-right: none; }
+  .step-tab .num {
+    display: block;
+    font-size: 17px;
+    font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'MS PMincho', serif;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .step-tab.active { background: var(--ink); color: var(--paper); }
+  .step-tab.done { background: var(--paper); color: var(--gold); }
+
+  /* ── Panel ── */
+  .panel { display: none; animation: fadeIn 0.35s ease; }
+  .panel.active { display: block; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+  /* ── Card ── */
+  .card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px var(--shadow);
+  }
+  .card-header {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--border);
+    background: var(--paper-dark);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .role-badge {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'MS PMincho', serif;
+    flex-shrink: 0;
+    color: white;
+  }
+  .badge-a { background: var(--blue); }
+  .badge-b { background: var(--green); }
+  .badge-c { background: #5c2d1a; }
+  .card-header h3 {
+    font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'MS PMincho', serif;
+    font-size: 14px; font-weight: 600; letter-spacing: 0.08em;
+  }
+  .card-body { padding: 18px 22px; }
+
+  label {
+    display: block;
+    font-size: 11px; font-weight: 500;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 9px 13px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--paper);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input[type="text"]:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(184,134,11,0.1);
+  }
+
+  .add-row {
+    display: flex; gap: 8px; margin-bottom: 8px; align-items: center;
+  }
+  .add-row input { flex: 1; }
+
+  /* ── Slot numeric form ── */
+  .slot-form {
+    background: var(--paper-dark);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 14px 16px;
+    margin-top: 10px;
+  }
+  .slot-form-row {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .slot-field {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .slot-unit {
+    font-size: 11px; color: var(--muted); letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+  .slot-sep-unit {
+    font-size: 13px; color: var(--ink); font-weight: 500;
+    white-space: nowrap;
+  }
+  .slot-tilde {
+    font-size: 16px; color: var(--muted); padding: 0 2px;
+  }
+  .slot-num {
+    width: 58px; padding: 8px 6px;
+    border: 1px solid var(--border); border-radius: 2px;
+    font-size: 18px; font-weight: 600; text-align: center;
+    color: var(--ink); background: white; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -moz-appearance: textfield;
+  }
+  .slot-num::-webkit-inner-spin-button,
+  .slot-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .slot-num:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(184,134,11,0.1);
+  }
+  .slot-preview {
+    margin-top: 10px; font-size: 13px;
+    color: var(--gold); font-weight: 500; letter-spacing: 0.05em;
+    min-height: 20px;
+  }
+
+  .btn-icon {
+    width: 32px; height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: none; cursor: pointer;
+    color: var(--muted); font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.18s;
+  }
+  .btn-icon:hover { border-color: var(--seal); color: var(--seal); background: rgba(192,57,43,0.05); }
+
+  /* Date list items */
+  .date-list { margin: 10px 0 6px; }
+  .date-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: var(--paper-dark);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn { from { opacity:0; transform:translateX(-6px); } to { opacity:1; transform:translateX(0); } }
+  .date-item .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex-shrink: 0;
+  }
+  .date-item .date-text { flex: 1; }
+  .date-item .remove-btn {
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    font-size: 13px; padding: 2px; transition: color 0.15s;
+  }
+  .date-item .remove-btn:hover { color: var(--seal); }
+
+  .btn-add-inline {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 14px; border: 1px dashed var(--border);
+    border-radius: 2px; background: none; cursor: pointer;
+    font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 12px;
+    color: var(--muted); letter-spacing: 0.06em; transition: all 0.18s;
+  }
+  .btn-add-inline:hover { border-color: var(--gold); color: var(--gold); }
+
+  .hint {
+    background: var(--paper-dark);
+    border-left: 3px solid var(--gold);
+    padding: 9px 13px; margin-bottom: 18px;
+    border-radius: 0 2px 2px 0;
+    font-size: 12px; color: var(--ink-light); line-height: 1.8;
+  }
+  .hint code {
+    font-family: monospace; background: white;
+    padding: 1px 5px; border: 1px solid var(--border);
+    border-radius: 2px; font-size: 11px; color: var(--gold);
+  }
+
+  /* ── Checkbox list (company) ── */
+  .check-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--border); border-radius: 2px;
+    margin-bottom: 8px; cursor: pointer;
+    background: white; transition: all 0.18s;
+  }
+  .check-item:hover { border-color: var(--gold); box-shadow: 0 1px 6px var(--shadow); }
+  .check-item input[type="checkbox"] { display: none; }
+  .check-box {
+    width: 18px; height: 18px; border: 2px solid var(--border);
+    border-radius: 2px; flex-shrink: 0; display: flex;
+    align-items: center; justify-content: center; transition: all 0.18s;
+    font-size: 11px; color: transparent;
+  }
+  .check-item.checked .check-box {
+    background: var(--ink); border-color: var(--ink); color: white;
+  }
+  .check-item.checked { border-color: var(--ink); background: rgba(26,26,46,0.03); }
+
+  /* ── Radio list (doctor B) ── */
+  .radio-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px;
+    border: 1px solid var(--border); border-radius: 2px;
+    margin-bottom: 8px; cursor: pointer;
+    background: white; transition: all 0.2s;
+  }
+  .radio-item:hover { border-color: var(--gold); box-shadow: 0 2px 8px var(--shadow); }
+  .radio-circle {
+    width: 18px; height: 18px; border: 2px solid var(--border);
+    border-radius: 50%; flex-shrink: 0; display: flex;
+    align-items: center; justify-content: center; transition: all 0.18s;
+  }
+  .radio-circle::after { content: ''; width: 0; height: 0; border-radius: 50%; background: white; transition: all 0.18s; }
+  .radio-item.selected { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+  .radio-item.selected .radio-circle { border-color: var(--gold); background: var(--gold); }
+  .radio-item.selected .radio-circle::after { width: 6px; height: 6px; }
+  .radio-item.selected .date-sub { color: rgba(245,240,232,0.65); }
+
+  .date-main { font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'MS PMincho', serif; font-size: 15px; font-weight: 600; }
+  .date-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+  /* ── Confirmed result ── */
+  .result-box {
+    border: 2px solid var(--gold);
+    border-radius: 2px; padding: 20px 24px;
+    background: white; margin-bottom: 20px;
+    text-align: center;
+  }
+  .result-box .label { font-size: 11px; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  .result-box .date-big { font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'MS PMincho', serif; font-size: 22px; font-weight: 700; color: var(--ink); }
+
+  /* ── Email ── */
+  .email-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (max-width: 500px) { .email-meta { grid-template-columns: 1fr; } }
+
+  textarea {
+    width: 100%; padding: 14px;
+    border: 1px solid var(--border); border-radius: 2px;
+    font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 13px;
+    line-height: 1.9; color: var(--ink); background: var(--paper);
+    resize: vertical; min-height: 280px; outline: none; transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(184,134,11,0.08); }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 15px; margin-top: 28px;
+    background: var(--ink); color: var(--paper);
+    border: none; border-radius: 2px;
+    font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'MS PMincho', serif; font-size: 14px;
+    font-weight: 600; letter-spacing: 0.15em;
+    cursor: pointer; transition: all 0.22s; position: relative; overflow: hidden;
+  }
+  .btn-primary:hover { background: var(--ink-light); }
+  .btn-primary:active { transform: translateY(1px); }
+
+  .btn-secondary {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; background: none;
+    border: 1px solid var(--border); border-radius: 2px;
+    font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 12px;
+    color: var(--ink); cursor: pointer; transition: all 0.18s; letter-spacing: 0.05em;
+  }
+  .btn-secondary:hover { border-color: var(--ink); background: var(--paper-dark); }
+
+  .btn-copy {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 18px; background: var(--seal); color: white;
+    border: none; border-radius: 2px;
+    font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif; font-size: 12px;
+    cursor: pointer; letter-spacing: 0.05em; transition: all 0.18s;
+  }
+  .btn-copy:hover { background: var(--seal-light); }
+  .btn-copy.copied { background: var(--green); }
+
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .panel-nav { display: flex; gap: 10px; align-items: center; margin-top: 22px; }
+  .panel-nav .btn-primary { flex: 1; margin-top: 0; }
+
+  .error { color: var(--seal); font-size: 12px; margin-top: 8px; display: none; }
+  .error.show { display: block; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 26px 0; }
+
+  .empty-state {
+    text-align: center; padding: 40px 20px;
+    border: 1px dashed var(--border); border-radius: 2px;
+  }
+  .empty-state .icon { font-size: 28px; margin-bottom: 10px; }
+  .empty-state p { color: var(--muted); font-size: 13px; line-height: 1.8; }
+
+  /* ── Password screen ── */
+  #pw-screen {
+    position: fixed; inset: 0;
+    background: var(--paper);
+    background-image:
+      radial-gradient(ellipse at 20% 0%, rgba(184,134,11,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 100%, rgba(192,57,43,0.05) 0%, transparent 60%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 9999;
+    padding: 24px;
+  }
+  #pw-screen::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--seal) 0%, var(--gold) 50%, var(--seal) 100%);
+  }
+  .pw-box {
+    width: 100%; max-width: 360px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    box-shadow: 0 4px 24px var(--shadow);
+    overflow: hidden;
+  }
+  .pw-header {
+    padding: 28px 28px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--paper-dark);
+    text-align: center;
+  }
+  .pw-header .lock-icon {
+    font-size: 28px; margin-bottom: 10px;
+  }
+  .pw-header h2 {
+    font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'MS PMincho', serif;
+    font-size: 16px; font-weight: 600;
+    letter-spacing: 0.1em; color: var(--ink);
+  }
+  .pw-header p {
+    font-size: 11px; color: var(--muted);
+    margin-top: 4px; letter-spacing: 0.08em;
+  }
+  .pw-body { padding: 24px 28px; }
+  .pw-body label {
+    font-size: 11px; font-weight: 500;
+    letter-spacing: 0.14em; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+  .pw-input-row {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .pw-input-row input {
+    flex: 1; padding: 10px 14px;
+    border: 1px solid var(--border); border-radius: 2px;
+    font-size: 15px; letter-spacing: 0.2em;
+    color: var(--ink); background: var(--paper);
+    outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .pw-input-row input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(184,134,11,0.1);
+  }
+  .pw-toggle {
+    width: 34px; height: 34px; flex-shrink: 0;
+    border: 1px solid var(--border); border-radius: 2px;
+    background: none; cursor: pointer;
+    color: var(--muted); font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.18s;
+  }
+  .pw-toggle:hover { border-color: var(--gold); color: var(--gold); }
+  .pw-error {
+    font-size: 12px; color: var(--seal);
+    margin-top: 8px; min-height: 16px;
+    display: none;
+  }
+  .pw-error.show { display: block; }
+  .pw-btn {
+    width: 100%; padding: 13px;
+    margin-top: 16px;
+    background: var(--ink); color: var(--paper);
+    border: none; border-radius: 2px;
+    font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'MS PMincho', serif;
+    font-size: 14px; font-weight: 600;
+    letter-spacing: 0.15em; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .pw-btn:hover { background: var(--ink-light); }
+  .pw-btn:active { transform: translateY(1px); }
+  .pw-footer {
+    padding: 12px 28px;
+    border-top: 1px solid var(--border);
+    background: var(--paper-dark);
+    text-align: center;
+    font-size: 11px; color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ PASSWORD SCREEN ══ -->
+<div id="pw-screen">
+  <div class="pw-box">
+    <div class="pw-header">
+      <div class="lock-icon">🔒</div>
+      <h2>アクセス制限</h2>
+      <p>このページは関係者限定です</p>
+    </div>
+    <div class="pw-body">
+      <label>パスワード</label>
+      <div class="pw-input-row">
+        <input type="password" id="pw-input" placeholder="••••••••"
+          onkeydown="if(event.key==='Enter') checkPassword()" autocomplete="off" />
+        <button class="pw-toggle" onclick="togglePwVisibility()" id="pw-toggle-btn" title="表示/非表示">👁</button>
+      </div>
+      <p class="pw-error" id="pw-error">パスワードが正しくありません</p>
+      <button class="pw-btn" onclick="checkPassword()">入室する</button>
+    </div>
+    <div class="pw-footer">稚内医師・北大医師・キヤノンMJ 関係者専用</div>
+  </div>
+</div>
+
+<header>
+  <h1>
+    <span>3-Party Schedule Coordinator</span>
+    稚内医師 → キヤノンMJ → 北大医師　日程調整
+  </h1>
+</header>
+
+<div class="container">
+
+  <div class="steps">
+    <div class="step-tab active" id="tab-1"><span class="num">1</span>稚内医師 入力</div>
+    <div class="step-tab" id="tab-2"><span class="num">2</span>キヤノンMJ 選択</div>
+    <div class="step-tab" id="tab-3"><span class="num">3</span>北大医師 確定</div>
+    <div class="step-tab" id="tab-4"><span class="num">4</span>メール生成</div>
+  </div>
+
+  <!-- ══ PANEL 1: 医師A ══ -->
+  <div class="panel active" id="panel-1">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="role-badge badge-a">A</div>
+        <h3>稚内医師　— 空き日程を入力</h3>
+      </div>
+      <div class="card-body">
+        <label>お名前</label>
+        <input type="text" id="name-a" placeholder="例：市立稚内病院　山田 先生" style="margin-bottom:18px;" />
+
+        <label>空き時間スロット</label>
+        <div class="date-list" id="list-a"></div>
+
+        <!-- 数字入力フォーム -->
+        <div class="slot-form">
+          <div class="slot-form-row">
+            <div class="slot-field">
+              <input type="number" id="sf-month" min="1" max="12" placeholder="" class="slot-num" oninput="updatePreview()" />
+              <span class="slot-sep-unit">月</span>
+            </div>
+            <div class="slot-field">
+              <input type="number" id="sf-day" min="1" max="31" placeholder="" class="slot-num" oninput="updatePreview()" />
+              <span class="slot-sep-unit">日</span>
+            </div>
+            <div class="slot-field">
+              <input type="number" id="sf-start" min="0" max="23" placeholder="" class="slot-num" oninput="updatePreview()" />
+              <span class="slot-sep-unit">時</span>
+            </div>
+            <span class="slot-tilde">〜</span>
+            <div class="slot-field">
+              <input type="number" id="sf-end" min="0" max="23" placeholder="" class="slot-num" oninput="updatePreview()" />
+              <span class="slot-sep-unit">時</span>
+            </div>
+            <button class="btn-icon" onclick="addDateA()" title="追加">＋</button>
+          </div>
+          <p class="slot-preview" id="slot-preview">開始と終了時間は1時間で入力してください</p>
+        </div>
+        <p class="error" id="err-a">名前と少なくとも1つのスロットを入力してください。</p>
+        <p class="error" id="err-slot">月・日・開始・終了をすべて入力してください。</p>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="goToCompany()">キヤノンMJへ送る →</button>
+  </div>
+
+
+  <!-- ══ PANEL 2: 企業 ══ -->
+  <div class="panel" id="panel-2">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="role-badge badge-c">企</div>
+        <h3>キヤノンMJ担当者　— ご都合のよい候補を選択</h3>
+      </div>
+      <div class="card-body">
+        <label>お名前</label>
+        <input type="text" id="name-c" placeholder="例：キヤノンMJ　田中 様" style="margin-bottom:18px;" />
+        <label>参加可能な日程にチェックを入れてください</label>
+        <div id="company-list" style="margin-top:10px;"></div>
+        <p class="error" id="err-c">名前と少なくとも1つの候補を選択してください。</p>
+      </div>
+    </div>
+
+    <div class="panel-nav">
+      <button class="btn-secondary" onclick="goToPanel(1)">← 戻る</button>
+      <button class="btn-primary" onclick="sendToDoctorB()">北大医師へ送る →</button>
+    </div>
+  </div>
+
+  <!-- ══ PANEL 3: 医師B ══ -->
+  <div class="panel" id="panel-3">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="role-badge badge-b">B</div>
+        <h3>北大医師　— 最終日程を選択</h3>
+      </div>
+      <div class="card-body">
+        <label>お名前</label>
+        <input type="text" id="name-b" placeholder="例：北海道大学病院　鈴木 先生" style="margin-bottom:18px;" />
+        <label>ご都合のよい日程を1つ選んでください</label>
+        <div id="doctorb-list" style="margin-top:10px;"></div>
+        <p class="error" id="err-b">名前と日程を選択してください。</p>
+      </div>
+    </div>
+
+    <div class="panel-nav">
+      <button class="btn-secondary" onclick="goToPanel(2)">← 戻る</button>
+      <button class="btn-primary" onclick="confirmDate()">日程を確定する →</button>
+    </div>
+  </div>
+
+  <!-- ══ PANEL 4: メール ══ -->
+  <div class="panel" id="panel-4">
+
+    <div class="result-box">
+      <div class="label">確定日時</div>
+      <div class="date-big" id="confirmed-date"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" style="background:var(--paper-dark);">
+        <h3 style="font-family:'Yu Mincho','Hiragino Mincho ProN','MS PMincho',serif;">📧 メール文</h3>
+      </div>
+      <div class="card-body">
+        <div class="email-meta">
+          <div>
+            <label>宛先</label>
+            <input type="text" id="email-to" />
+          </div>
+          <div>
+            <label>件名</label>
+            <input type="text" id="email-subject" />
+          </div>
+        </div>
+        <label>本文</label>
+        <textarea id="email-body"></textarea>
+        <div class="btn-row">
+          <button class="btn-copy" id="copy-btn" onclick="copyMail()">📋 本文をコピー</button>
+          <button class="btn-secondary" onclick="regenerateMail()">↺ 再生成</button>
+          <button class="btn-secondary" onclick="goToPanel(3)">← 戻る</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let doctorADates = [];      // strings entered by Doctor A
+let companyPicked = [];     // strings chosen by Company
+let finalDate = '';         // string chosen by Doctor B
+
+// ── Panel navigation ───────────────────────────────────────────────────
+function goToPanel(n) {
+  document.querySelectorAll('.panel').forEach((p, i) =>
+    p.classList.toggle('active', i === n - 1));
+  document.querySelectorAll('.step-tab').forEach((t, i) => {
+    t.classList.remove('active', 'done');
+    if (i === n - 1) t.classList.add('active');
+    else if (i < n - 1) t.classList.add('done');
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Panel 1: Doctor A ─────────────────────────────────────────────────
+// プレビュー更新
+function updatePreview() {
+  const m = document.getElementById('sf-month').value;
+  const d = document.getElementById('sf-day').value;
+  const s = document.getElementById('sf-start').value;
+  const e = document.getElementById('sf-end').value;
+  const el = document.getElementById('slot-preview');
+  if (m && d && s !== '' && e !== '') {
+    el.textContent = `→ ${m}月${d}日　${s}時〜${e}時`;
+    el.style.color = 'var(--gold)';
+  } else {
+    el.textContent = '開始と終了時間は1時間で入力してください';
+    el.style.color = 'var(--muted)';
+  }
+}
+
+function addDateA() {
+  const m = document.getElementById('sf-month').value;
+  const d = document.getElementById('sf-day').value;
+  const s = document.getElementById('sf-start').value;
+  const e = document.getElementById('sf-end').value;
+  const errSlot = document.getElementById('err-slot');
+
+  if (!m || !d || s === '' || e === '') {
+    errSlot.classList.add('show');
+    errSlot.style.display = 'block';
+    return;
+  }
+  errSlot.classList.remove('show');
+  errSlot.style.display = 'none';
+
+  const val = `${m}月${d}日　${s}時〜${e}時`;
+  doctorADates.push(val);
+  renderListA();
+
+  // 入力欄をリセット
+  document.getElementById('sf-month').value = '';
+  document.getElementById('sf-day').value = '';
+  document.getElementById('sf-start').value = '';
+  document.getElementById('sf-end').value = '';
+  document.getElementById('slot-preview').textContent = '開始と終了時間は1時間で入力してください';
+  document.getElementById('slot-preview').style.color = 'var(--muted)';
+  document.getElementById('sf-month').focus();
+}
+
+function removeDateA(i) {
+  doctorADates.splice(i, 1);
+  renderListA();
+}
+
+function renderListA() {
+  const ul = document.getElementById('list-a');
+  ul.innerHTML = '';
+  doctorADates.forEach((d, i) => {
+    const el = document.createElement('div');
+    el.className = 'date-item';
+    el.innerHTML = `
+      <span class="dot"></span>
+      <span class="date-text">${esc(d)}</span>
+      <button class="remove-btn" onclick="removeDateA(${i})" title="削除">✕</button>
+    `;
+    ul.appendChild(el);
+  });
+}
+
+function goToCompany() {
+  // 入力欄に未確定の数字が入っていたら自動追加
+  const m = document.getElementById('sf-month').value;
+  const d = document.getElementById('sf-day').value;
+  const s = document.getElementById('sf-start').value;
+  const e = document.getElementById('sf-end').value;
+  if (m && d && s !== '' && e !== '') {
+    doctorADates.push(`${m}月${d}日　${s}時〜${e}時`);
+    renderListA();
+  }
+
+  const nameA = document.getElementById('name-a').value.trim();
+  const err = document.getElementById('err-a');
+  if (!nameA || doctorADates.length === 0) { err.classList.add('show'); return; }
+  err.classList.remove('show');
+
+  // Build company checkbox list
+  const list = document.getElementById('company-list');
+  list.innerHTML = '';
+  doctorADates.forEach((d, i) => {
+    const item = document.createElement('label');
+    item.className = 'check-item';
+    item.innerHTML = `
+      <input type="checkbox" value="${esc(d)}" onchange="toggleCheck(this)">
+      <span class="check-box">✓</span>
+      <span style="font-size:14px;">${esc(d)}</span>
+    `;
+    list.appendChild(item);
+  });
+
+  goToPanel(2);
+}
+
+function toggleCheck(cb) {
+  const item = cb.closest('.check-item');
+  item.classList.toggle('checked', cb.checked);
+}
+
+// ── Panel 2: Company ──────────────────────────────────────────────────
+function sendToDoctorB() {
+  const nameC = document.getElementById('name-c').value.trim();
+  companyPicked = Array.from(
+    document.querySelectorAll('#company-list input:checked')
+  ).map(el => el.value);
+  const err = document.getElementById('err-c');
+  if (!nameC || companyPicked.length === 0) { err.classList.add('show'); return; }
+  err.classList.remove('show');
+
+  // Build Doctor B radio list
+  const list = document.getElementById('doctorb-list');
+  list.innerHTML = '';
+  companyPicked.forEach(d => {
+    const item = document.createElement('div');
+    item.className = 'radio-item';
+    item.dataset.value = d;
+    item.innerHTML = `
+      <div class="radio-circle"></div>
+      <div>
+        <div class="date-main">${esc(d)}</div>
+      </div>
+    `;
+    item.onclick = () => selectRadio(item);
+    list.appendChild(item);
+  });
+
+  goToPanel(3);
+}
+
+function selectRadio(el) {
+  document.querySelectorAll('#doctorb-list .radio-item').forEach(r => r.classList.remove('selected'));
+  el.classList.add('selected');
+  finalDate = el.dataset.value;
+}
+
+// ── Panel 3: Doctor B ─────────────────────────────────────────────────
+function confirmDate() {
+  const nameB = document.getElementById('name-b').value.trim();
+  const err = document.getElementById('err-b');
+  if (!nameB || !finalDate) { err.classList.add('show'); return; }
+  err.classList.remove('show');
+
+  document.getElementById('confirmed-date').textContent = finalDate;
+  generateMail();
+  goToPanel(4);
+}
+
+// ── Panel 4: Email ────────────────────────────────────────────────────
+function generateMail() {
+  document.getElementById('email-to').value = '北大（北井先生）、市立稚内（村中先生）';
+  document.getElementById('email-subject').value =
+    '【面談日程のご確認】北大（北井先生）・市立稚内（村中先生）との面談について';
+
+  document.getElementById('email-body').value =
+`北井先生、村中先生へ
+
+平素より大変お世話になっております。
+
+この度は面談日程のご調整にご協力いただき、誠にありがとうございます。
+
+北井先生、村中先生のご都合を確認した結果、
+以下の日程で面談を開催させていただきたく存じます。
+
+──────────────────────────
+　確定日時：${finalDate}
+──────────────────────────
+
+ご確認のほど、何卒よろしくお願い申し上げます。
+ご不明な点がございましたら、お気軽にご連絡ください。
+
+キヤノンマーケティングジャパン株式会社　阿部
+──────────────────────────`;
+}
+
+function regenerateMail() {
+  generateMail();
+  const btn = document.getElementById('copy-btn');
+  btn.textContent = '📋 本文をコピー';
+  btn.classList.remove('copied');
+}
+
+function copyMail() {
+  navigator.clipboard.writeText(document.getElementById('email-body').value).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ コピーしました';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 本文をコピー'; btn.classList.remove('copied'); }, 2500);
+  });
+}
+
+// ── Util ──────────────────────────────────────────────────────────────
+function esc(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Password ──────────────────────────────────────────────────────────
+const CORRECT_PASSWORD = 'Canon2026';  // ← ここを変更してください
+
+function checkPassword() {
+  const input = document.getElementById('pw-input').value;
+  const err   = document.getElementById('pw-error');
+  if (input === CORRECT_PASSWORD) {
+    const screen = document.getElementById('pw-screen');
+    screen.style.transition = 'opacity 0.4s';
+    screen.style.opacity = '0';
+    setTimeout(() => screen.remove(), 400);
+  } else {
+    err.classList.add('show');
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+    // 3秒後にエラーを消す
+    setTimeout(() => err.classList.remove('show'), 3000);
+  }
+}
+
+function togglePwVisibility() {
+  const inp = document.getElementById('pw-input');
+  const btn = document.getElementById('pw-toggle-btn');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+// ページ読み込み時にパスワード入力欄にフォーカス
+window.addEventListener('load', () => {
+  document.getElementById('pw-input').focus();
+});
+</script>
+</body>
+</html>
